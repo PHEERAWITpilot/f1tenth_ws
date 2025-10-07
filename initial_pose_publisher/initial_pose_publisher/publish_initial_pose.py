@@ -14,15 +14,15 @@ class InitialPosePublisher(Node):
         msg = PoseWithCovarianceStamped()
         msg.header.frame_id = 'map'
         msg.header.stamp = self.get_clock().now().to_msg()
-        msg.pose.pose.position.x = -1.22
-        msg.pose.pose.position.y = -0.108
+        msg.pose.pose.position.x = -0.766   # Set X
+        msg.pose.pose.position.y = -3.49    # Set Y
         msg.pose.pose.position.z = 0.0
 
-        yaw = 0.00551  # radians
+        yaw = 0.206  # Yaw in radians
         msg.pose.pose.orientation.x = 0.0
         msg.pose.pose.orientation.y = 0.0
-        msg.pose.pose.orientation.z = math.sin(yaw / 2.0)
-        msg.pose.pose.orientation.w = math.cos(yaw / 2.0)
+        msg.pose.pose.orientation.z = math.sin(yaw / 2.0)  # ≈ 0.1027
+        msg.pose.pose.orientation.w = math.cos(yaw / 2.0)  # ≈ 0.9948
 
         msg.pose.covariance = [
             0.25, 0.0, 0.0, 0.0, 0.0, 0.0,
@@ -33,7 +33,9 @@ class InitialPosePublisher(Node):
             0.0, 0.0, 0.0, 0.0, 0.0, 0.0685
         ]
         self.publisher_.publish(msg)
-        self.get_logger().info(f'Published initial pose: x={-1.22}, y={-0.108}, yaw={0.00551}')
+        self.get_logger().info(
+            f'Published initial pose: x={-0.766}, y={-3.49}, yaw={0.206}'
+        )
 
 def main(args=None):
     rclpy.init(args=args)

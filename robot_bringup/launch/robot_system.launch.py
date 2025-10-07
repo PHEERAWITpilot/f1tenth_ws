@@ -7,9 +7,12 @@ from launch_ros.actions import Node
 import os
 
 def generate_launch_description():
-    default_map_path = '/home/f2/f1tenth_ws/src/map_create/maps/circle2.yaml'
+    default_map_path = '/home/f2/f1tenth_ws/src/map_create/maps/capsule.yaml'
     default_params_path = '/home/f2/f1tenth_ws/src/robot_config/config/nav2params.yaml'
-    default_bt_xml_path = '/opt/ros/humble/share/nav2_bt_navigator/behavior_trees/navigate_to_pose_w_replanning_and_recovery.xml'
+    default_bt_xml_path = '/home/f2/f1tenth_ws/src/robot_config/config/ackermann_navigate_to_pose.xml'
+
+
+
 
     map_file = LaunchConfiguration('map')
     params_file = LaunchConfiguration('params_file')
@@ -64,8 +67,7 @@ def generate_launch_description():
         executable='bt_navigator',
         name='bt_navigator',
         output='screen',
-        parameters=[params_file,
-            {'default_nav_to_pose_bt_xml': bt_xml_file}
+        parameters=[params_file
         ],
         respawn=False
     )

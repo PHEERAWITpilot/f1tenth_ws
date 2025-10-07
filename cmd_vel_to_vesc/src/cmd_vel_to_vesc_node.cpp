@@ -11,14 +11,11 @@ public:
   {
     this->declare_parameter("min_motor_speed", 2500.0);
     this->declare_parameter("max_speed_rpm", 6000.0);
-    
-    // *** UPDATED: Changed servo range from 0.0-1.0 to 65.0-67.0 to match hardware ***
-    this->declare_parameter("servo_min", 65.0);      // Full left (hardware min)
-    this->declare_parameter("servo_center", 66.0);   // Center (midpoint)
-    this->declare_parameter("servo_max", 67.0);      // Full right (hardware max)
-    
-    this->declare_parameter("wheelbase", 0.3);       // In meters, measure your robot!
-    this->declare_parameter("steer_gain", 3.37);      // Gain mapping radian to servo range
+    this->declare_parameter("servo_min", 65.0);
+    this->declare_parameter("servo_center", 66.0);
+    this->declare_parameter("servo_max", 67.0);
+    this->declare_parameter("wheelbase", 0.3);
+    this->declare_parameter("steer_gain", 3.37);
 
     min_motor_speed_ = this->get_parameter("min_motor_speed").as_double();
     max_speed_rpm_ = this->get_parameter("max_speed_rpm").as_double();
@@ -34,7 +31,7 @@ public:
     motor_speed_pub_ = this->create_publisher<std_msgs::msg::Float64>("/commands/motor/speed", 10);
     servo_pub_ = this->create_publisher<std_msgs::msg::Float64>("/commands/servo/position", 10);
 
-    RCLCPP_INFO(this->get_logger(), "--- cmd_vel_to_vesc node ready ---");
+    RCLCPP_INFO(this->get_logger(), "--- cmd_vel_to_vesc node ready (FORWARD ONLY) ---");
     RCLCPP_INFO(this->get_logger(), "Servo range configured: min=%.1f, center=%.1f, max=%.1f", 
                 servo_min_, servo_center_, servo_max_);
   }
@@ -45,13 +42,21 @@ private:
     double linear_vel = msg->linear.x;
     double angular_vel = msg->angular.z;
 
-    // Motor mapping - simple proportional, with deadzone
+    // ✅ ENFORCE FORWARD-ONLY: Clamp negative velocity to 0
+    if (linear_vel < 0.0) {
+      RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 1000,
+        "Negative linear velocity (%.2f) commanded - clamping to 0 (forward-only mode)", linear_vel);
+      linear_vel = 0.0;
+    }
+
+    // Motor mapping - forward only with deadzone
     double rpm = 0.0;
     double k_deadzone = 0.01;
     if (std::abs(linear_vel) > k_deadzone) {
-      double percent = std::clamp(linear_vel, -1.0, 1.0); // If using normalized [-1,1] in nav stack
-      rpm = percent * (max_speed_rpm_ - min_motor_speed_) + (percent > 0 ? min_motor_speed_ : -min_motor_speed_);
-      rpm = std::clamp(rpm, -max_speed_rpm_, max_speed_rpm_);
+      // ✅ ONLY positive percent (0.0 to 1.0)
+      double percent = std::clamp(linear_vel, 0.0, 1.0);
+      rpm = percent * (max_speed_rpm_ - min_motor_speed_) + min_motor_speed_;
+      rpm = std::clamp(rpm, 0.0, max_speed_rpm_); // ✅ NO negative RPM!
     }
 
     // Ackermann steering: Convert angular_vel and linear_vel to steering angle (radian)
@@ -61,7 +66,6 @@ private:
     }
     
     // Map steering angle (rad) to servo value in 65-67 range
-    // steer_gain should be positive or negative to match your robot direction!
     double servo_pos = servo_center_ + (-steer_gain_) * steering_angle;
 
     // Clamp to hardware limits (65-67)
@@ -76,7 +80,7 @@ private:
     servo_msg.data = servo_pos;
     servo_pub_->publish(servo_msg);
 
-    RCLCPP_INFO(this->get_logger(),
+    RCLCPP_DEBUG(this->get_logger(),
       "cmd_vel: %.2f m/s, %.2f rad/s --> RPM: %.0f, servo: %.2f, steering_angle(rad): %.3f",
       linear_vel, angular_vel, rpm, servo_pos, steering_angle);
   }
