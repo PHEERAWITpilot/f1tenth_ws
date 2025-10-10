@@ -7,7 +7,7 @@ from launch_ros.actions import Node
 import os
 
 def generate_launch_description():
-    default_map_path = '/home/f2/f1tenth_ws/src/map_create/maps/capsule.yaml'
+    default_map_path = '/home/f2/f1tenth_ws/src/map_create/maps/bigcapsule.yaml'
     default_params_path = '/home/f2/f1tenth_ws/src/robot_config/config/nav2params.yaml'
     default_bt_xml_path = '/home/f2/f1tenth_ws/src/robot_config/config/ackermann_navigate_to_pose.xml'
 

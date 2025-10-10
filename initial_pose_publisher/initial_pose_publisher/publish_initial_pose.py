@@ -1,7 +1,6 @@
 import rclpy
 from rclpy.node import Node
 from geometry_msgs.msg import PoseWithCovarianceStamped
-import math
 
 class InitialPosePublisher(Node):
     def __init__(self):
@@ -14,15 +13,18 @@ class InitialPosePublisher(Node):
         msg = PoseWithCovarianceStamped()
         msg.header.frame_id = 'map'
         msg.header.stamp = self.get_clock().now().to_msg()
-        msg.pose.pose.position.x = -0.766   # Set X
-        msg.pose.pose.position.y = -3.49    # Set Y
+        
+        # Position from RViz: Position(-0.949417, 0.22481, 0)
+        msg.pose.pose.position.x = -0.949417
+        msg.pose.pose.position.y = 0.22481
         msg.pose.pose.position.z = 0.0
 
-        yaw = 0.206  # Yaw in radians
+        # Quaternion from RViz: Orientation(0, 0, -0.998554, 0.0537616)
+        # Note: RViz shows (x, y, z, w) format
         msg.pose.pose.orientation.x = 0.0
         msg.pose.pose.orientation.y = 0.0
-        msg.pose.pose.orientation.z = math.sin(yaw / 2.0)  # ≈ 0.1027
-        msg.pose.pose.orientation.w = math.cos(yaw / 2.0)  # ≈ 0.9948
+        msg.pose.pose.orientation.z = -0.998554
+        msg.pose.pose.orientation.w = 0.0537616
 
         msg.pose.covariance = [
             0.25, 0.0, 0.0, 0.0, 0.0, 0.0,
@@ -32,9 +34,11 @@ class InitialPosePublisher(Node):
             0.0, 0.0, 0.0, 0.0, 0.0685, 0.0,
             0.0, 0.0, 0.0, 0.0, 0.0, 0.0685
         ]
+        
         self.publisher_.publish(msg)
         self.get_logger().info(
-            f'Published initial pose: x={-0.766}, y={-3.49}, yaw={0.206}'
+            f'Published initial pose: x={-0.949417}, y={0.22481}, '
+            f'orientation(z={-0.998554}, w={0.0537616}), yaw=-3.03402 rad'
         )
 
 def main(args=None):

@@ -11,11 +11,14 @@ public:
   {
     this->declare_parameter("min_motor_speed", 2500.0);
     this->declare_parameter("max_speed_rpm", 6000.0);
-    this->declare_parameter("servo_min", 65.0);
+    
+    // ✅ CORRECTED SERVO PARAMETERS
+    this->declare_parameter("servo_min", 65.5);
     this->declare_parameter("servo_center", 66.0);
-    this->declare_parameter("servo_max", 67.0);
-    this->declare_parameter("wheelbase", 0.3);
-    this->declare_parameter("steer_gain", 3.37);
+    this->declare_parameter("servo_max", 66.5);
+    
+    this->declare_parameter("wheelbase", 0.34);
+    this->declare_parameter("steer_gain", 2.1);  // ← CORRECTED! ✅
 
     min_motor_speed_ = this->get_parameter("min_motor_speed").as_double();
     max_speed_rpm_ = this->get_parameter("max_speed_rpm").as_double();
@@ -31,9 +34,11 @@ public:
     motor_speed_pub_ = this->create_publisher<std_msgs::msg::Float64>("/commands/motor/speed", 10);
     servo_pub_ = this->create_publisher<std_msgs::msg::Float64>("/commands/servo/position", 10);
 
-    RCLCPP_INFO(this->get_logger(), "--- cmd_vel_to_vesc node ready (FORWARD ONLY) ---");
-    RCLCPP_INFO(this->get_logger(), "Servo range configured: min=%.1f, center=%.1f, max=%.1f", 
+    RCLCPP_INFO(this->get_logger(), "--- cmd_vel_to_vesc node ready ---");
+    RCLCPP_INFO(this->get_logger(), "Servo: min=%.2f, center=%.2f, max=%.2f", 
                 servo_min_, servo_center_, servo_max_);
+    RCLCPP_INFO(this->get_logger(), "Steer gain: %.2f, Wheelbase: %.2f m", 
+                steer_gain_, wheelbase_);
   }
 
 private:
@@ -42,33 +47,29 @@ private:
     double linear_vel = msg->linear.x;
     double angular_vel = msg->angular.z;
 
-    // ✅ ENFORCE FORWARD-ONLY: Clamp negative velocity to 0
     if (linear_vel < 0.0) {
       RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 1000,
-        "Negative linear velocity (%.2f) commanded - clamping to 0 (forward-only mode)", linear_vel);
+        "Negative velocity %.2f - clamping to 0", linear_vel);
       linear_vel = 0.0;
     }
 
-    // Motor mapping - forward only with deadzone
+    // Motor mapping
     double rpm = 0.0;
     double k_deadzone = 0.01;
     if (std::abs(linear_vel) > k_deadzone) {
-      // ✅ ONLY positive percent (0.0 to 1.0)
       double percent = std::clamp(linear_vel, 0.0, 1.0);
       rpm = percent * (max_speed_rpm_ - min_motor_speed_) + min_motor_speed_;
-      rpm = std::clamp(rpm, 0.0, max_speed_rpm_); // ✅ NO negative RPM!
+      rpm = std::clamp(rpm, 0.0, max_speed_rpm_);
     }
 
-    // Ackermann steering: Convert angular_vel and linear_vel to steering angle (radian)
+    // Ackermann steering
     double steering_angle = 0.0;
     if (std::abs(linear_vel) > k_deadzone) {
       steering_angle = std::atan2(angular_vel * wheelbase_, std::max(std::abs(linear_vel), k_deadzone));
     }
     
-    // Map steering angle (rad) to servo value in 65-67 range
+    // Map steering to servo
     double servo_pos = servo_center_ + (-steer_gain_) * steering_angle;
-
-    // Clamp to hardware limits (65-67)
     servo_pos = std::clamp(servo_pos, servo_min_, servo_max_);
 
     // Publish
@@ -80,9 +81,9 @@ private:
     servo_msg.data = servo_pos;
     servo_pub_->publish(servo_msg);
 
-    RCLCPP_DEBUG(this->get_logger(),
-      "cmd_vel: %.2f m/s, %.2f rad/s --> RPM: %.0f, servo: %.2f, steering_angle(rad): %.3f",
-      linear_vel, angular_vel, rpm, servo_pos, steering_angle);
+    RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 1000,
+      "cmd_vel: lin=%.2f, ang=%.3f | steer=%.3f rad (%.1f°) | servo=%.2f | RPM=%.0f",
+      linear_vel, angular_vel, steering_angle, steering_angle * 57.3, servo_pos, rpm);
   }
 
   rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr cmd_vel_sub_;
