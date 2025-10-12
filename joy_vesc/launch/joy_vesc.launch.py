@@ -37,18 +37,21 @@ def generate_launch_description():
     # Joy node configuration file
     joy_config = os.path.join(joy_vesc_dir, 'config', 'joy_vesc_params.yaml')
     
-    # 1. Joy Node
+    # 1. Joy Node - REMAPPED TO /cmd_vel_joy
     joy_node = Node(
         package='joy',
         executable='joy_node',
         name='joy_node',
         parameters=[
             {
-                'device_id': 0,  # Use device ID instead of device_name
+                'device_id': 0,
                 'deadzone': 0.05,
                 'autorepeat_rate': 20.0,
                 'use_sim_time': LaunchConfiguration('use_sim_time')
             }
+        ],
+        remappings=[
+            ('/cmd_vel', '/cmd_vel_joy'),  # ← CRITICAL: Joystick publishes to /cmd_vel_joy
         ],
         output='screen'
     )

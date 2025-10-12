@@ -4,8 +4,10 @@ bt_navigator:
     global_frame: map
     robot_base_frame: base_link
     odom_topic: /odom
-    transform_tolerance: 0.5  # 🔧 FIXED: Synced from 0.1 to match stack-wide timing
-    default_bt_xml_filename: "/home/f2/f1tenth_ws/src/robot_config/config/ackermann_navigate_to_pose.xml"
+    transform_tolerance: 0.5
+    default_bt_xml_filename: "/home/f2/f1tenth_ws/src/robot_config/config/ackermann_navigate_through_poses.xml"
+    default_nav_to_pose_bt_xml: "/home/f2/f1tenth_ws/src/robot_config/config/ackermann_navigate_through_poses.xml"
+    default_nav_through_poses_bt_xml: "/home/f2/f1tenth_ws/src/robot_config/config/ackermann_navigate_through_poses.xml"
     
     plugin_lib_names:
       - nav2_compute_path_to_pose_action_bt_node
@@ -56,7 +58,7 @@ bt_navigator:
 controller_server:
   ros__parameters:
     use_sim_time: false
-    controller_frequency: 20.0  # 🔧 FIXED: Reduced from 30.0 to give planner breathing room
+    controller_frequency: 20.0
     min_x_velocity_threshold: 0.001
     min_y_velocity_threshold: 0.5
     min_theta_velocity_threshold: 0.001
@@ -67,61 +69,79 @@ controller_server:
 
     progress_checker:
       plugin: "nav2_controller::SimpleProgressChecker"
-      required_movement_radius: 0.50  # 🔧 FIXED: Increased from 0.30 for Ackermann constraints
-      movement_time_allowance: 35.0  # 🔧 FIXED: Increased from 25.0 to prevent premature timeouts
+      required_movement_radius: 0.50
+      movement_time_allowance: 35.0
 
     general_goal_checker:
       stateful: True
       plugin: "nav2_controller::SimpleGoalChecker"
-      xy_goal_tolerance: 0.25
-      yaw_goal_tolerance: 0.50
+      xy_goal_tolerance: 0.20
+      yaw_goal_tolerance: 0.40
 
     FollowPath:
       plugin: "nav2_regulated_pure_pursuit_controller::RegulatedPurePursuitController"
-      desired_linear_vel: 0.7
-      min_linear_velocity: 0.15
-      max_linear_velocity: 0.9
+      desired_linear_vel: 1.0            # 🔥 RACING SPEED!
+      min_linear_velocity: 0.15          # Higher minimum for momentum
+      max_linear_velocity: 1.2           # Headroom for acceleration
       max_robot_pose_search_dist: 50.0
       use_interpolation: true
-      max_lookahead_dist: 2.0
-      min_lookahead_dist: 0.6
-      lookahead_time: 2.0
+      max_lookahead_dist: 2.0            # Increased for high speed
+      min_lookahead_dist: 0.8            # Increased for stability
+      lookahead_time: 1.5                # Reduced - more responsive
       use_velocity_scaled_lookahead_dist: true
-      lookahead_dist_ratio: 2.5
+      lookahead_dist_ratio: 2.0          # Tighter at speed
       use_rotate_to_heading: false
       rotate_to_heading_angular_vel: 1.2
       allow_reversing: false
       wheelbase: 0.34
-      min_turning_radius: 1.29
+      min_turning_radius: 1.27
       max_steering_angle: 0.2618
-      max_curvature: 0.776
+      max_curvature: 0.787
       use_regulated_linear_velocity_scaling: true
-      regulated_linear_scaling_min_radius: 1.29
-      regulated_linear_scaling_min_speed: 0.25
+      regulated_linear_scaling_min_radius: 1.27
+      regulated_linear_scaling_min_speed: 0.20  # Higher for racing
       use_fixed_curvature_lookahead: true
-      curvature_lookahead_dist: 1.5
-      safety_distance: 0.20
+      curvature_lookahead_dist: 1.5      # Increased for high-speed curves
+      safety_distance: 0.35              # Slightly more buffer
       regulate_by_approaching_angle: true
-      approach_velocity_scaling_dist: 1.2
-      max_approaching_angle: 1.5
+      approach_velocity_scaling_dist: 2.0   # Increased range
+      max_approaching_angle: 1.2         # Tighter tolerance at speed
       use_collision_detection: true
-      transform_tolerance: 0.5  # 🔧 FIXED: Decreased from 2.0 to sync with stack
-      cost_scaling_dist: 0.6
-      cost_scaling_gain: 1.0
-      inflation_cost_scaling_factor: 3.0
+      transform_tolerance: 0.5
+      cost_scaling_dist: 1.0             # Increased for high speed
+      cost_scaling_gain: 1.8             # More aggressive avoidance
+      inflation_cost_scaling_factor: 3.5 # Higher sensitivity
 
 planner_server:
   ros__parameters:
     use_sim_time: false
-    expected_planner_frequency: 5.0  # 🔧 FIXED: Realistic target from 10.0 (actual was 0.74-1.09Hz)
-    costmap_update_timeout: 2.0  # 🔧 NEW: Give costmap time to stabilize before planning
+    expected_planner_frequency: 3.0
     planner_plugins: ["GridBased"]
     
     GridBased:
-      plugin: "nav2_navfn_planner/NavfnPlanner"
-      tolerance: 0.75
-      use_astar: true
+      plugin: "nav2_smac_planner/SmacPlannerHybrid"
+      downsample_costmap: false
+      downsampling_factor: 1
+      tolerance: 0.25
       allow_unknown: true
+      max_iterations: 1000000
+      max_planning_time: 5.0
+      motion_model_for_search: "REEDS_SHEPP"
+      angle_quantization_bins: 72
+      analytic_expansion_ratio: 3.5
+      analytic_expansion_max_length: 3.0
+      minimum_turning_radius: 1.27
+      reverse_penalty: 2.0
+      change_penalty: 0.0
+      non_straight_penalty: 1.2
+      cost_penalty: 2.0
+      retrospective_penalty: 0.015
+      lookup_table_size: 5.0
+      cache_obstacle_heuristic: true
+      smooth_path: true
+      debug_visualizations: false
+      use_quadratic_cost_penalty: false
+      downsample_obstacle_heuristic: true
 
 behavior_server:
   ros__parameters:
@@ -133,7 +153,7 @@ behavior_server:
     cycle_frequency: 20.0
     behavior_plugins: ["backup", "drive_on_heading", "wait", "spin"]
     transform_tolerance: 0.5
-    global_frame: odom
+    global_frame: map
     robot_base_frame: base_link
     simulate_ahead_time: 2.0
 
@@ -146,8 +166,8 @@ behavior_server:
     drive_on_heading:
       plugin: "nav2_behaviors/DriveOnHeading"
       simulate_ahead_time: 2.0
-      max_linear_vel: 0.5
-      min_linear_vel: 0.2
+      max_linear_vel: 1.0
+      min_linear_vel: 0.3
 
     wait:
       plugin: "nav2_behaviors/Wait"
@@ -164,8 +184,8 @@ local_costmap:
   local_costmap:
     ros__parameters:
       use_sim_time: false
-      update_frequency: 20.0
-      publish_frequency: 15.0
+      update_frequency: 30.0
+      publish_frequency: 20.0
       global_frame: odom
       robot_base_frame: base_link
       rolling_window: true
@@ -173,7 +193,13 @@ local_costmap:
       height: 6
       resolution: 0.05
       footprint: "[[0.284, 0.14], [0.284, -0.14], [-0.284, -0.14], [-0.284, 0.14]]"
-      plugins: ["obstacle_layer", "inflation_layer"]
+      plugins: ["static_layer", "obstacle_layer", "inflation_layer"]
+
+      static_layer:
+        plugin: "nav2_costmap_2d::StaticLayer"
+        map_subscribe_transient_local: True
+        enabled: True
+        subscribe_to_updates: false
 
       obstacle_layer:
         plugin: "nav2_costmap_2d::ObstacleLayer"
@@ -182,11 +208,11 @@ local_costmap:
         footprint_clearing_enabled: true
         max_obstacle_height: 2.0
         min_obstacle_height: 0.0
-        obstacle_max_range: 2.5
-        obstacle_min_range: 0.30
-        raytrace_max_range: 3.5
-        raytrace_min_range: 0.30
-        combination_method: 0
+        obstacle_max_range: 4.0          # 🔥 4m dynamic detection
+        obstacle_min_range: 0.0
+        raytrace_max_range: 4.5          # Clearing range
+        raytrace_min_range: 0.0
+        combination_method: 2            # MaxWithoutUnknownOverwrite
         track_unknown_space: false
 
         scan:
@@ -197,23 +223,21 @@ local_costmap:
           data_type: "LaserScan"
           min_obstacle_height: 0.0
           max_obstacle_height: 2.0
-          inf_is_valid: false
-          clearing: True
-          marking: True
-          obstacle_max_range: 2.5
-          obstacle_min_range: 0.30
-          raytrace_max_range: 3.5
-          raytrace_min_range: 0.30
-          min_scan_angle: -1.5708
-          max_scan_angle: 1.5708
+          inf_is_valid: true
+          clearing: true
+          marking: true
+          obstacle_max_range: 4.0
+          obstacle_min_range: 0.0
+          raytrace_max_range: 4.5
+          raytrace_min_range: 0.0
 
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
         enabled: True
         inflate_unknown: false
         inflate_around_unknown: false
-        cost_scaling_factor: 2.0
-        inflation_radius: 0.18
+        cost_scaling_factor: 3.0
+        inflation_radius: 0.18           # Slightly increased for safety at speed
 
       always_send_full_costmap: True
 
@@ -221,8 +245,8 @@ global_costmap:
   global_costmap:
     ros__parameters:
       use_sim_time: false
-      update_frequency: 5.0  # 🔧 FIXED: Boosted from 1.0 to unblock planner (was the bottleneck!)
-      publish_frequency: 2.0  # 🔧 FIXED: Increased from 1.0 for better visualization
+      update_frequency: 5.0
+      publish_frequency: 2.0
       global_frame: map
       robot_base_frame: base_link
       footprint: "[[0.284, 0.14], [0.284, -0.14], [-0.284, -0.14], [-0.284, 0.14]]"
@@ -230,13 +254,51 @@ global_costmap:
       track_unknown_space: false
       rolling_window: false
       always_send_full_costmap: True
-      plugins: ["static_layer"]  # 🔧 FIXED: Removed obstacle_layer for straight-line performance
+      plugins: ["static_layer", "obstacle_layer", "inflation_layer"]
 
       static_layer:
         plugin: "nav2_costmap_2d::StaticLayer"
         map_subscribe_transient_local: True
         enabled: True
-        subscribe_to_updates: true
+        subscribe_to_updates: false
+
+      obstacle_layer:
+        plugin: "nav2_costmap_2d::ObstacleLayer"
+        enabled: True
+        observation_sources: scan
+        footprint_clearing_enabled: true
+        max_obstacle_height: 2.0
+        min_obstacle_height: 0.0
+        obstacle_max_range: 5.0
+        obstacle_min_range: 0.0
+        raytrace_max_range: 6.0
+        raytrace_min_range: 0.0
+        combination_method: 2
+        track_unknown_space: false
+
+        scan:
+          topic: /scan
+          sensor_frame: laser
+          observation_persistence: 0.0
+          expected_update_rate: 0.0
+          data_type: "LaserScan"
+          min_obstacle_height: 0.0
+          max_obstacle_height: 2.0
+          inf_is_valid: true
+          clearing: true
+          marking: true
+          obstacle_max_range: 5.0
+          obstacle_min_range: 0.0
+          raytrace_max_range: 6.0
+          raytrace_min_range: 0.0
+      
+      inflation_layer:
+        plugin: "nav2_costmap_2d::InflationLayer"
+        enabled: True
+        inflate_unknown: false
+        inflate_around_unknown: false
+        cost_scaling_factor: 3.0
+        inflation_radius: 0.22           # Slightly increased for planning
 
 map_server:
   ros__parameters:
@@ -294,8 +356,8 @@ velocity_smoother:
     feedback: "OPEN_LOOP"
     max_velocity: [1.5, 0.0, 1.5]
     min_velocity: [0.0, 0.0, -1.5]
-    max_accel: [1.5, 0.0, 2.5]
-    max_decel: [-2.0, 0.0, -2.5]
+    max_accel: [2.0, 0.0, 3.0]           # Increased for racing
+    max_decel: [-2.5, 0.0, -3.0]         # Stronger braking
     odom_topic: "odom"
     odom_duration: 0.1
     deadband_velocity: [0.0, 0.0, 0.0]
@@ -320,13 +382,13 @@ collision_monitor:
       type: "polygon"
       action_type: "slowdown"
       footprint_topic: "/local_costmap/published_footprint"
-      time_before_collision: 0.8
+      time_before_collision: 1.2         # More time at speed
       simulation_time_step: 0.05
       min_points: 6
       visualize: True
       enabled: True
-      slowdown_ratio: 0.72
-      linear_limit: 0.5
+      slowdown_ratio: 0.50               # More aggressive slowdown
+      linear_limit: 0.8
 
     scan:
       type: "scan"
@@ -351,7 +413,7 @@ amcl:
     do_beamskip: true
     global_frame_id: "map"
     lambda_short: 0.1
-    laser_likelihood_max_dist: 2.0
+    laser_likelihood_max_dist: 4.0
     laser_max_range: 30.0
     laser_min_range: 0.05
     laser_model_type: "likelihood_field"
@@ -367,9 +429,9 @@ amcl:
     save_pose_rate: 0.5
     sigma_hit: 0.05
     tf_broadcast: true
-    transform_tolerance: 0.5  # 🔧 FIXED: Decreased from 2.0 for synchronized timing
-    update_min_d: 0.05  # 🔧 FIXED: Increased from 0.01 to reduce localization jitter
-    update_min_a: 0.02  # 🔧 FIXED: Increased from 0.005 to stabilize heading corrections
+    transform_tolerance: 0.5
+    update_min_d: 0.05
+    update_min_a: 0.02
     z_hit: 0.9
     z_max: 0.05
     z_rand: 0.1

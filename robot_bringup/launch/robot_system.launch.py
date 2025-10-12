@@ -11,9 +11,6 @@ def generate_launch_description():
     default_params_path = '/home/f2/f1tenth_ws/src/robot_config/config/nav2params.yaml'
     default_bt_xml_path = '/home/f2/f1tenth_ws/src/robot_config/config/ackermann_navigate_to_pose.xml'
 
-
-
-
     map_file = LaunchConfiguration('map')
     params_file = LaunchConfiguration('params_file')
     bt_xml_file = LaunchConfiguration('bt_xml')
@@ -43,7 +40,7 @@ def generate_launch_description():
         launch_arguments={'map': map_file, 'params_file': params_file}.items()
     )
 
-    # Navigation server nodes (controller, planner - they create costmaps internally)
+    # Navigation server nodes
     navigation_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource([
             os.path.join(get_package_share_directory('robot_navigation'), 'launch'),
@@ -67,12 +64,11 @@ def generate_launch_description():
         executable='bt_navigator',
         name='bt_navigator',
         output='screen',
-        parameters=[params_file
-        ],
+        parameters=[params_file],
         respawn=False
     )
 
-    # Initial pose publisher
+    # Initial pose publisher - uses retry logic internally
     initial_pose_node = Node(
         package='initial_pose_publisher',
         executable='publish_initial_pose',
@@ -88,13 +84,12 @@ def generate_launch_description():
         output='screen',
         parameters=[{
             'autostart': True,
-            'bond_timeout': 30.0,  # Increased
+            'bond_timeout': 30.0,
             'node_names': ['map_server', 'amcl']
         }]
     )
 
     # Lifecycle Manager for Navigation
-    # CRITICAL: Must wait for costmaps to finish "Creating" phase
     lifecycle_manager_nav = Node(
         package='nav2_lifecycle_manager',
         executable='lifecycle_manager',
@@ -102,7 +97,7 @@ def generate_launch_description():
         output='screen',
         parameters=[{
             'autostart': True,
-            'bond_timeout': 30.0,  # Increased
+            'bond_timeout': 30.0,
             'attempt_respawn_reconnection': True,
             'bond_respawn_max_duration': 10.0,
             'node_names': [
@@ -114,20 +109,23 @@ def generate_launch_description():
         }]
     )
 
-    # Timed launch sequence
+    # OPTIMIZED TIMING SEQUENCE
+    # 1. Start localization lifecycle manager (map + AMCL)
     lifecycle_manager_loc_timed = TimerAction(
-        period=5.0,
+        period=5.0,  # Localization starts at 5s
         actions=[lifecycle_manager_loc]
     )
 
+    # 2. Publish initial pose - now with more delay for AMCL to be ready
+    #    AND using retry publisher that publishes 5 times
     initial_pose_delayed = TimerAction(
-        period=8.0,
+        period=12.0,  # Increased to 12s - gives AMCL time to fully initialize
         actions=[initial_pose_node]
     )
 
-    # CRITICAL: Wait 25 seconds for costmaps to fully initialize
+    # 3. Start navigation lifecycle manager (controller, planner, behaviors)
     lifecycle_manager_nav_timed = TimerAction(
-        period=25.0,  # Increased significantly
+        period=25.0,  # Navigation starts at 25s - after AMCL is localized
         actions=[lifecycle_manager_nav]
     )
 
@@ -136,15 +134,15 @@ def generate_launch_description():
         declare_params_cmd,
         declare_bt_xml_cmd,
         
-        # Launch nodes
+        # Launch nodes immediately
         localization_launch,
         navigation_launch,
         behavior_server_node,
         bt_navigator_node,
         
-        # Timed lifecycle managers
-        lifecycle_manager_loc_timed,
-        initial_pose_delayed,
-        lifecycle_manager_nav_timed,
+        # Timed lifecycle managers (sequential startup)
+        lifecycle_manager_loc_timed,      # 5s: Start localization
+        initial_pose_delayed,             # 12s: Set initial pose (with retries)
+        lifecycle_manager_nav_timed,      # 25s: Start navigation
     ])
 

@@ -1,4 +1,3 @@
-
 // Copyright 2020 F1TENTH Foundation
 //
 // Redistribution and use in source and binary forms, with or without
@@ -65,10 +64,11 @@ VescDriver::VescDriver(const rclcpp::NodeOptions & options)
   brake_limit_(this, "brake"),
   speed_limit_(this, "speed"),
   position_limit_(this, "position"),
-  servo_limit_(this, "servo", 0.0, 1.0),  // Keep standard 0.0-1.0 range
+  servo_limit_(this, "servo", 0.0, 1.0),
   driver_mode_(MODE_INITIALIZING),
   fw_version_major_(-1),
-  fw_version_minor_(-1)
+  fw_version_minor_(-1),
+  button5_pressed_(false)
 {
   // get vesc serial port address
   std::string port = declare_parameter<std::string>("port", "");
@@ -320,7 +320,14 @@ void VescDriver::brakeCallback(const Float64::SharedPtr brake)
 void VescDriver::speedCallback(const Float64::SharedPtr speed)
 {
   if (driver_mode_ == MODE_OPERATING) {
-    RCLCPP_INFO(get_logger(), "speedCallback: setting VESC speed to %f", speed->data);
+    // Ignore Nav2 commands when button 5 is pressed
+    if (button5_pressed_) {
+      RCLCPP_DEBUG_THROTTLE(get_logger(), *get_clock(), 1000,
+                            "Ignoring Nav2 speed - joystick override active");
+      return;
+    }
+    
+    RCLCPP_DEBUG(get_logger(), "speedCallback: setting VESC speed to %f", speed->data);
     vesc_.setSpeed(speed_limit_.clip(speed->data));
   }
 }
@@ -344,6 +351,13 @@ void VescDriver::positionCallback(const Float64::SharedPtr position)
 void VescDriver::servoCallback(const Float64::SharedPtr servo)
 {
   if (driver_mode_ == MODE_OPERATING) {
+    // Ignore Nav2 commands when button 5 is pressed
+    if (button5_pressed_) {
+      RCLCPP_DEBUG_THROTTLE(get_logger(), *get_clock(), 1000,
+                            "Ignoring Nav2 servo - joystick override active");
+      return;
+    }
+    
     double servo_clipped(servo_limit_.clip(servo->data));
     vesc_.setServo(servo_clipped);
     // publish clipped servo value as a "sensor"
@@ -362,32 +376,35 @@ double map(double value, double in_min, double in_max, double out_min, double ou
 
 void VescDriver::joyCallback(const sensor_msgs::msg::Joy::SharedPtr joy)
 {
-  if (joy->buttons[5] == 1) {  // Button 5 (Xbox logo button for Xbox controllers)
+  // Update button 5 state (critical for blocking Nav2 commands!)
+  button5_pressed_ = (joy->buttons[5] == 1);
+  
+  if (button5_pressed_) {  // Button 5 PRESSED - MANUAL OVERRIDE
     double linear_vel = joy->axes[1];   // Left stick Y-axis
     double angular_vel = joy->axes[0];  // Left stick X-axis
 
     // Map joystick input to motor speed (±2000 RPM range)
     double motor_speed = map(linear_vel, -1.0, 1.0, -2000.0, 2000.0);
-    vesc_.setSpeed(motor_speed); // Direct VESC control - bypasses ROS2 topic limits
+    vesc_.setSpeed(motor_speed); // Direct VESC control
 
     // Map joystick input to servo position (65-67 range for your hardware)
     double servo_angle = map(angular_vel, -1.0, 1.0, 65.0, 67.0);
-    vesc_.setServo(servo_angle); // Direct VESC servo control - bypasses ROS2 topic limits
+    vesc_.setServo(servo_angle); // Direct VESC servo control
 
     // Publish to ROS2 topics for monitoring/logging
     std_msgs::msg::Float64 motor_speed_msg;
     motor_speed_msg.data = motor_speed;
     motor_speed_pub_->publish(motor_speed_msg);
 
-    RCLCPP_INFO(get_logger(), "joyCallback: button5 pressed, set VESC speed to %f, servo to %f", 
-                motor_speed, servo_angle);
-
     auto servo_angle_msg = Float64();
     servo_angle_msg.data = servo_angle;
     servo_angle_pub_->publish(servo_angle_msg);
+
+    RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 1000, 
+                         "🎮 JOYSTICK OVERRIDE: speed=%f, servo=%f", motor_speed, servo_angle);
   }
-  // When button 5 is not pressed, do not send speed/servo commands to VESC
-  // This allows ROS2 topics (like /cmd_vel from Nav2) to control the robot
+  // When button 5 is NOT pressed, Nav2 automatically resumes control
+  // (speedCallback and servoCallback check button5_pressed_ flag)
 }
 //
 
@@ -496,3 +513,4 @@ double VescDriver::CommandLimit::clip(double value)
 #include "rclcpp_components/register_node_macro.hpp"  // NOLINT
 
 RCLCPP_COMPONENTS_REGISTER_NODE(vesc_driver::VescDriver)
+

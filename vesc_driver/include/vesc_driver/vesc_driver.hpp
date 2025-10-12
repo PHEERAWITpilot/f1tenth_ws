@@ -77,6 +77,7 @@ private:
   //Publish motor_speed_pub
   rclcpp::Publisher<Float64>::SharedPtr motor_speed_pub_;
   rclcpp::Publisher<Float64>::SharedPtr servo_angle_pub_;
+  bool button5_pressed_;  // ← CRITICAL: THIS WAS MISSING!
   
   // limits on VESC commands
   struct CommandLimit
@@ -146,3 +147,4 @@ private:
 }  // namespace vesc_driver
 
 #endif  // VESC_DRIVER__VESC_DRIVER_HPP_
+

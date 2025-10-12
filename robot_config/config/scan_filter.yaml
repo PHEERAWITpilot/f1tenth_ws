@@ -1,0 +1,23 @@
+scan_filter:
+  ros__parameters:
+    use_sim_time: false
+
+scan_to_scan_filter_chain:
+  ros__parameters:
+    use_sim_time: false
+    scanner_filters:
+      - name: angle_filter
+        type: laser_filters/LaserScanAngularBoundsFilter
+        params:
+          lower_angle: -2.0944  # -120°
+          upper_angle: 2.0944   # +120°
+          
+      - name: range_filter
+        type: laser_filters/LaserScanRangeFilter
+        params:
+          use_message_range_limits: false
+          lower_replacement_value: .inf  # ← CHANGE: Use inf for out-of-range
+          upper_replacement_value: .inf  # ← CHANGE: Use inf for out-of-range
+          lower_threshold: 0.1           # ← CHANGE from 0.3
+          upper_threshold: 10.0          # ← CHANGE from 30.0 to match needs
+
