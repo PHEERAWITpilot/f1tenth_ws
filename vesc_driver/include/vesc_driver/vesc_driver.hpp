@@ -129,6 +129,10 @@ private:
   int fw_version_major_;                ///< firmware major version reported by vesc
   int fw_version_minor_;                ///< firmware minor version reported by vesc
 
+  // 🔥 NEW: Joystick override safety system
+  bool joystick_override_active_;       ///< flag: true when joystick button 5 pressed
+  rclcpp::Time last_joy_time_;          ///< timestamp of last joystick message (for timeout)
+
   // ROS callbacks
   void brakeCallback(const Float64::SharedPtr brake);
   void currentCallback(const Float64::SharedPtr current);
@@ -146,3 +150,4 @@ private:
 }  // namespace vesc_driver
 
 #endif  // VESC_DRIVER__VESC_DRIVER_HPP_
+

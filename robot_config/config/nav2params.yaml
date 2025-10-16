@@ -4,8 +4,9 @@ bt_navigator:
     global_frame: map
     robot_base_frame: base_link
     odom_topic: /odom
-    transform_tolerance: 0.5  # 🔧 FIXED: Synced from 0.1 to match stack-wide timing
-    default_bt_xml_filename: "/home/f2/f1tenth_ws/src/robot_config/config/ackermann_navigate_to_pose.xml"
+    transform_tolerance: 0.5
+    default_bt_xml_filename: "/home/f2/f1tenth_ws/src/robot_config/config/ackermann_navigate_through_poses.xml"
+    default_server_timeout: 20
     
     plugin_lib_names:
       - nav2_compute_path_to_pose_action_bt_node
@@ -56,19 +57,19 @@ bt_navigator:
 controller_server:
   ros__parameters:
     use_sim_time: false
-    controller_frequency: 20.0  # 🔧 FIXED: Reduced from 30.0 to give planner breathing room
+    controller_frequency: 20.0
     min_x_velocity_threshold: 0.001
     min_y_velocity_threshold: 0.5
     min_theta_velocity_threshold: 0.001
-    failure_tolerance: 0.8
+    failure_tolerance: 2.0
     progress_checker_plugin: "progress_checker"
     goal_checker_plugins: ["general_goal_checker"]
     controller_plugins: ["FollowPath"]
 
     progress_checker:
       plugin: "nav2_controller::SimpleProgressChecker"
-      required_movement_radius: 0.50  # 🔧 FIXED: Increased from 0.30 for Ackermann constraints
-      movement_time_allowance: 35.0  # 🔧 FIXED: Increased from 25.0 to prevent premature timeouts
+      required_movement_radius: 0.30
+      movement_time_allowance: 50.0
 
     general_goal_checker:
       stateful: True
@@ -79,15 +80,15 @@ controller_server:
     FollowPath:
       plugin: "nav2_regulated_pure_pursuit_controller::RegulatedPurePursuitController"
       desired_linear_vel: 0.7
-      min_linear_velocity: 0.15
+      min_linear_velocity: 0.25
       max_linear_velocity: 0.9
       max_robot_pose_search_dist: 50.0
       use_interpolation: true
-      max_lookahead_dist: 2.0
-      min_lookahead_dist: 0.6
-      lookahead_time: 2.0
+      max_lookahead_dist: 1.5
+      min_lookahead_dist: 0.5
+      lookahead_time: 1.5
       use_velocity_scaled_lookahead_dist: true
-      lookahead_dist_ratio: 2.5
+      lookahead_dist_ratio: 2.0
       use_rotate_to_heading: false
       rotate_to_heading_angular_vel: 1.2
       allow_reversing: false
@@ -96,32 +97,34 @@ controller_server:
       max_steering_angle: 0.2618
       max_curvature: 0.776
       use_regulated_linear_velocity_scaling: true
-      regulated_linear_scaling_min_radius: 1.29
+      regulated_linear_scaling_min_radius: 1.0
       regulated_linear_scaling_min_speed: 0.25
       use_fixed_curvature_lookahead: true
-      curvature_lookahead_dist: 1.5
-      safety_distance: 0.20
-      regulate_by_approaching_angle: true
-      approach_velocity_scaling_dist: 1.2
-      max_approaching_angle: 1.5
-      use_collision_detection: true
-      transform_tolerance: 0.5  # 🔧 FIXED: Decreased from 2.0 to sync with stack
-      cost_scaling_dist: 0.6
-      cost_scaling_gain: 1.0
+      curvature_lookahead_dist: 1.0
+      safety_distance: 0.15
+      regulate_by_approaching_angle: false
+      approach_velocity_scaling_dist: 1.0
+      max_approaching_angle: 2.0
+      use_collision_detection: false
+      max_allowed_time_to_collision_up_to_carrot: 0.0
+      transform_tolerance: 0.5
+      cost_scaling_dist: 0.8
+      cost_scaling_gain: 3.0
       inflation_cost_scaling_factor: 3.0
 
 planner_server:
   ros__parameters:
     use_sim_time: false
-    expected_planner_frequency: 5.0  # 🔧 FIXED: Realistic target from 10.0 (actual was 0.74-1.09Hz)
-    costmap_update_timeout: 2.0  # 🔧 NEW: Give costmap time to stabilize before planning
+    expected_planner_frequency: 1.5
+    costmap_update_timeout: 3.0
     planner_plugins: ["GridBased"]
     
     GridBased:
       plugin: "nav2_navfn_planner/NavfnPlanner"
-      tolerance: 0.75
+      tolerance: 0.8
       use_astar: true
       allow_unknown: true
+      use_final_approach_orientation: false
 
 behavior_server:
   ros__parameters:
@@ -169,8 +172,8 @@ local_costmap:
       global_frame: odom
       robot_base_frame: base_link
       rolling_window: true
-      width: 4
-      height: 6
+      width: 6
+      height: 8
       resolution: 0.05
       footprint: "[[0.284, 0.14], [0.284, -0.14], [-0.284, -0.14], [-0.284, 0.14]]"
       plugins: ["obstacle_layer", "inflation_layer"]
@@ -182,9 +185,9 @@ local_costmap:
         footprint_clearing_enabled: true
         max_obstacle_height: 2.0
         min_obstacle_height: 0.0
-        obstacle_max_range: 2.5
+        obstacle_max_range: 4.0
         obstacle_min_range: 0.30
-        raytrace_max_range: 3.5
+        raytrace_max_range: 5.0
         raytrace_min_range: 0.30
         combination_method: 0
         track_unknown_space: false
@@ -200,9 +203,9 @@ local_costmap:
           inf_is_valid: false
           clearing: True
           marking: True
-          obstacle_max_range: 2.5
+          obstacle_max_range: 4.0
           obstacle_min_range: 0.30
-          raytrace_max_range: 3.5
+          raytrace_max_range: 5.0
           raytrace_min_range: 0.30
           min_scan_angle: -1.5708
           max_scan_angle: 1.5708
@@ -212,7 +215,7 @@ local_costmap:
         enabled: True
         inflate_unknown: false
         inflate_around_unknown: false
-        cost_scaling_factor: 2.0
+        cost_scaling_factor: 3.0
         inflation_radius: 0.18
 
       always_send_full_costmap: True
@@ -221,8 +224,8 @@ global_costmap:
   global_costmap:
     ros__parameters:
       use_sim_time: false
-      update_frequency: 5.0  # 🔧 FIXED: Boosted from 1.0 to unblock planner (was the bottleneck!)
-      publish_frequency: 2.0  # 🔧 FIXED: Increased from 1.0 for better visualization
+      update_frequency: 1.5
+      publish_frequency: 2.0
       global_frame: map
       robot_base_frame: base_link
       footprint: "[[0.284, 0.14], [0.284, -0.14], [-0.284, -0.14], [-0.284, 0.14]]"
@@ -230,13 +233,51 @@ global_costmap:
       track_unknown_space: false
       rolling_window: false
       always_send_full_costmap: True
-      plugins: ["static_layer"]  # 🔧 FIXED: Removed obstacle_layer for straight-line performance
+      plugins: ["static_layer", "obstacle_layer", "inflation_layer"]
 
       static_layer:
         plugin: "nav2_costmap_2d::StaticLayer"
         map_subscribe_transient_local: True
         enabled: True
         subscribe_to_updates: true
+
+      obstacle_layer:
+        plugin: "nav2_costmap_2d::ObstacleLayer"
+        enabled: True
+        observation_sources: scan
+        footprint_clearing_enabled: true
+        max_obstacle_height: 2.0
+        min_obstacle_height: 0.0
+        obstacle_max_range: 5.0
+        obstacle_min_range: 0.30
+        raytrace_max_range: 6.0
+        raytrace_min_range: 0.30
+        combination_method: 2
+        track_unknown_space: false
+
+        scan:
+          topic: /scan
+          sensor_frame: laser
+          observation_persistence: 0.0
+          expected_update_rate: 0.0
+          data_type: "LaserScan"
+          min_obstacle_height: 0.0
+          max_obstacle_height: 2.0
+          inf_is_valid: false
+          clearing: True
+          marking: True
+          obstacle_max_range: 5.0
+          obstacle_min_range: 0.30
+          raytrace_max_range: 6.0
+          raytrace_min_range: 0.30
+
+      inflation_layer:
+        plugin: "nav2_costmap_2d::InflationLayer"
+        enabled: True
+        inflate_unknown: false
+        inflate_around_unknown: false
+        cost_scaling_factor: 3.0
+        inflation_radius: 0.35
 
 map_server:
   ros__parameters:
@@ -306,7 +347,7 @@ collision_monitor:
     use_sim_time: false
     base_frame_id: "base_link"
     odom_frame_id: "odom"
-    cmd_vel_in_topic: "cmd_vel"
+    cmd_vel_in_topic: "cmd_vel_smoothed"
     cmd_vel_out_topic: "cmd_vel"
     state_topic: "collision_monitor_state"
     transform_tolerance: 0.5
@@ -320,13 +361,13 @@ collision_monitor:
       type: "polygon"
       action_type: "slowdown"
       footprint_topic: "/local_costmap/published_footprint"
-      time_before_collision: 0.8
-      simulation_time_step: 0.05
-      min_points: 6
+      time_before_collision: 1.2
+      simulation_time_step: 0.02
+      min_points: 3
       visualize: True
       enabled: True
-      slowdown_ratio: 0.72
-      linear_limit: 0.5
+      slowdown_ratio: 0.60
+      linear_limit: 0.4
 
     scan:
       type: "scan"
@@ -367,12 +408,14 @@ amcl:
     save_pose_rate: 0.5
     sigma_hit: 0.05
     tf_broadcast: true
-    transform_tolerance: 0.5  # 🔧 FIXED: Decreased from 2.0 for synchronized timing
-    update_min_d: 0.05  # 🔧 FIXED: Increased from 0.01 to reduce localization jitter
-    update_min_a: 0.02  # 🔧 FIXED: Increased from 0.005 to stabilize heading corrections
+    transform_tolerance: 0.5
+    update_min_d: 0.05
+    update_min_a: 0.02
     z_hit: 0.9
     z_max: 0.05
     z_rand: 0.1
     z_short: 0.02
     scan_topic: scan
+
+
 

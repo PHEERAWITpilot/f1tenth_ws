@@ -1,4 +1,3 @@
-
 // Copyright 2020 F1TENTH Foundation
 //
 // Redistribution and use in source and binary forms, with or without
@@ -65,10 +64,12 @@ VescDriver::VescDriver(const rclcpp::NodeOptions & options)
   brake_limit_(this, "brake"),
   speed_limit_(this, "speed"),
   position_limit_(this, "position"),
-  servo_limit_(this, "servo", 0.0, 1.0),  // Keep standard 0.0-1.0 range
+  servo_limit_(this, "servo", 0.0, 1.0),
   driver_mode_(MODE_INITIALIZING),
   fw_version_major_(-1),
-  fw_version_minor_(-1)
+  fw_version_minor_(-1),
+  joystick_override_active_(false),
+  last_joy_time_(this->now())
 {
   // get vesc serial port address
   std::string port = declare_parameter<std::string>("port", "");
@@ -118,19 +119,6 @@ VescDriver::VescDriver(const rclcpp::NodeOptions & options)
   // create a 50Hz timer, used for state machine & polling VESC telemetry
   timer_ = create_wall_timer(20ms, std::bind(&VescDriver::timerCallback, this));
 }
-
-/* TODO or TO-THINKABOUT LIST
-  - what should we do on startup? send brake or zero command?
-  - what to do if the vesc interface gives an error?
-  - check version number against know compatable?
-  - should we wait until we receive telemetry before sending commands?
-  - should we track the last motor command
-  - what to do if no motor command received recently?
-  - what to do if no servo command received recently?
-  - what is the motor safe off state (0 current?)
-  - what to do if a command parameter is out of range, ignore?
-  - try to predict vesc bounds (from vesc config) and command detect bounds errors
-*/
 
 void VescDriver::timerCallback()
 {
@@ -275,78 +263,83 @@ void VescDriver::vescErrorCallback(const std::string & error)
   RCLCPP_ERROR(get_logger(), "%s", error.c_str());
 }
 
-/**
- * @param duty_cycle Commanded VESC duty cycle. Valid range for this driver is -1 to +1. However,
- *                   note that the VESC may impose a more restrictive bounds on the range depending
- *                   on its configuration, e.g. absolute value is between 0.05 and 0.95.
- */
 void VescDriver::dutyCycleCallback(const Float64::SharedPtr duty_cycle)
 {
+  if (joystick_override_active_) {
+    RCLCPP_WARN_THROTTLE(get_logger(), *this->get_clock(), 1000, 
+                         "🎮 MANUAL MODE - ignoring Nav2 duty_cycle command");
+    return;
+  }
+
   if (driver_mode_ == MODE_OPERATING) {
     vesc_.setDutyCycle(duty_cycle_limit_.clip(duty_cycle->data));
   }
 }
 
-/**
- * @param current Commanded VESC current in Amps. Any value is accepted by this driver. However,
- *                note that the VESC may impose a more restrictive bounds on the range depending on
- *                its configuration.
- */
 void VescDriver::currentCallback(const Float64::SharedPtr current)
 {
+  if (joystick_override_active_) {
+    RCLCPP_WARN_THROTTLE(get_logger(), *this->get_clock(), 1000, 
+                         "🎮 MANUAL MODE - ignoring Nav2 current command");
+    return;
+  }
+
   if (driver_mode_ == MODE_OPERATING) {
     vesc_.setCurrent(current_limit_.clip(current->data));
   }
 }
 
-/**
- * @param brake Commanded VESC braking current in Amps. Any value is accepted by this driver.
- *              However, note that the VESC may impose a more restrictive bounds on the range
- *              depending on its configuration.
- */
 void VescDriver::brakeCallback(const Float64::SharedPtr brake)
 {
+  if (joystick_override_active_) {
+    RCLCPP_WARN_THROTTLE(get_logger(), *this->get_clock(), 1000, 
+                         "🎮 MANUAL MODE - ignoring Nav2 brake command");
+    return;
+  }
+
   if (driver_mode_ == MODE_OPERATING) {
     vesc_.setBrake(brake_limit_.clip(brake->data));
   }
 }
 
-/**
- * @param speed Commanded VESC speed in electrical RPM. Electrical RPM is the mechanical RPM
- *              multiplied by the number of motor poles. Any value is accepted by this
- *              driver. However, note that the VESC may impose a more restrictive bounds on the
- *              range depending on its configuration.
-*/
 void VescDriver::speedCallback(const Float64::SharedPtr speed)
 {
+  if (joystick_override_active_) {
+    RCLCPP_WARN_THROTTLE(get_logger(), *this->get_clock(), 1000, 
+                         "🎮 MANUAL MODE - ignoring Nav2 speed command");
+    return;
+  }
+
   if (driver_mode_ == MODE_OPERATING) {
-    RCLCPP_INFO(get_logger(), "speedCallback: setting VESC speed to %f", speed->data);
     vesc_.setSpeed(speed_limit_.clip(speed->data));
   }
 }
 
-/**
- * @param position Commanded VESC motor position in radians. Any value is accepted by this driver.
- *                 Note that the VESC must be in encoder mode for this command to have an effect.
- */
 void VescDriver::positionCallback(const Float64::SharedPtr position)
 {
+  if (joystick_override_active_) {
+    RCLCPP_WARN_THROTTLE(get_logger(), *this->get_clock(), 1000, 
+                         "🎮 MANUAL MODE - ignoring Nav2 position command");
+    return;
+  }
+
   if (driver_mode_ == MODE_OPERATING) {
-    // ROS uses radians but VESC seems to use degrees. Convert to degrees.
     double position_deg = position_limit_.clip(position->data) * 180.0 / M_PI;
     vesc_.setPosition(position_deg);
   }
 }
 
-/**
- * @param servo Commanded VESC servo output position. Valid range is 0 to 1.
-*/
 void VescDriver::servoCallback(const Float64::SharedPtr servo)
 {
+  if (joystick_override_active_) {
+    RCLCPP_WARN_THROTTLE(get_logger(), *this->get_clock(), 1000, 
+                         "🎮 MANUAL MODE - ignoring Nav2 servo command");
+    return;
+  }
+
   if (driver_mode_ == MODE_OPERATING) {
     double servo_clipped(servo_limit_.clip(servo->data));
     vesc_.setServo(servo_clipped);
-    // publish clipped servo value as a "sensor"
     auto servo_sensor_msg = Float64();
     servo_sensor_msg.data = servo_clipped;
     servo_sensor_pub_->publish(servo_sensor_msg);
@@ -354,7 +347,6 @@ void VescDriver::servoCallback(const Float64::SharedPtr servo)
 }
 
 //Added by BP
-//Define the map function
 double map(double value, double in_min, double in_max, double out_min, double out_max) {
     double mappedValue = (value - in_min) / (in_max - in_min) * (out_max - out_min) + out_min;
     return mappedValue;
@@ -362,34 +354,47 @@ double map(double value, double in_min, double in_max, double out_min, double ou
 
 void VescDriver::joyCallback(const sensor_msgs::msg::Joy::SharedPtr joy)
 {
-  if (joy->buttons[5] == 1) {  // Button 5 (Xbox logo button for Xbox controllers)
+  last_joy_time_ = this->now();
+
+  // 🔥 BUTTON 5 TOGGLE: Press once to switch between MANUAL and AUTO mode
+  static bool last_button5_state = false;
+  if (joy->buttons[5] == 1 && !last_button5_state) {  // Rising edge detection (button pressed)
+    joystick_override_active_ = !joystick_override_active_;
+    if (joystick_override_active_) {
+      RCLCPP_WARN(get_logger(), "🎮 MANUAL MODE ACTIVATED - Press Button 5 again to return to AUTO");
+    } else {
+      RCLCPP_INFO(get_logger(), "🤖 AUTO MODE ACTIVATED - Nav2 control restored");
+    }
+  }
+  last_button5_state = (joy->buttons[5] == 1);
+
+  // 🔥 MANUAL CONTROL: Only active when in MANUAL mode
+  if (joystick_override_active_) {
     double linear_vel = joy->axes[1];   // Left stick Y-axis
     double angular_vel = joy->axes[0];  // Left stick X-axis
 
     // Map joystick input to motor speed (±2000 RPM range)
     double motor_speed = map(linear_vel, -1.0, 1.0, -2000.0, 2000.0);
-    vesc_.setSpeed(motor_speed); // Direct VESC control - bypasses ROS2 topic limits
+    vesc_.setSpeed(motor_speed);
 
-    // Map joystick input to servo position (65-67 range for your hardware)
+    // Map joystick input to servo position (65-67 range)
     double servo_angle = map(angular_vel, -1.0, 1.0, 65.0, 67.0);
-    vesc_.setServo(servo_angle); // Direct VESC servo control - bypasses ROS2 topic limits
+    vesc_.setServo(servo_angle);
 
-    // Publish to ROS2 topics for monitoring/logging
+    // Publish for monitoring
     std_msgs::msg::Float64 motor_speed_msg;
     motor_speed_msg.data = motor_speed;
     motor_speed_pub_->publish(motor_speed_msg);
 
-    RCLCPP_INFO(get_logger(), "joyCallback: button5 pressed, set VESC speed to %f, servo to %f", 
-                motor_speed, servo_angle);
+    RCLCPP_INFO_THROTTLE(get_logger(), *this->get_clock(), 500,
+                         "🎮 Manual: speed=%.0f RPM, servo=%.1f", 
+                         motor_speed, servo_angle);
 
     auto servo_angle_msg = Float64();
     servo_angle_msg.data = servo_angle;
     servo_angle_pub_->publish(servo_angle_msg);
   }
-  // When button 5 is not pressed, do not send speed/servo commands to VESC
-  // This allows ROS2 topics (like /cmd_vel from Nav2) to control the robot
 }
-//
 
 VescDriver::CommandLimit::CommandLimit(
   rclcpp::Node * node_ptr,
@@ -400,7 +405,6 @@ VescDriver::CommandLimit::CommandLimit(
   logger(node_ptr->get_logger()),
   name(str)
 {
-  // check if user's minimum value is outside of the range min_lower to max_upper
   auto param_min =
     node_ptr->declare_parameter(name + "_min", rclcpp::ParameterValue(0.0));
 
@@ -422,7 +426,6 @@ VescDriver::CommandLimit::CommandLimit(
     lower = *min_lower;
   }
 
-  // check if the user's maximum value is outside of the range min_lower to max_upper
   auto param_max =
     node_ptr->declare_parameter(name + "_max", rclcpp::ParameterValue(0.0));
 
@@ -444,7 +447,6 @@ VescDriver::CommandLimit::CommandLimit(
     upper = *max_upper;
   }
 
-  // check for min > max
   if (upper && lower && *lower > *upper) {
     RCLCPP_WARN_STREAM(
       logger, "Parameter " << name << "_max (" << *upper <<
@@ -493,6 +495,7 @@ double VescDriver::CommandLimit::clip(double value)
 
 }  // namespace vesc_driver
 
-#include "rclcpp_components/register_node_macro.hpp"  // NOLINT
+#include "rclcpp_components/register_node_macro.hpp"
 
 RCLCPP_COMPONENTS_REGISTER_NODE(vesc_driver::VescDriver)
+
