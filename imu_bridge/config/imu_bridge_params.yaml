@@ -1,0 +1,8 @@
+# IMU Bridge Parameters
+arduino_bridge_node:
+  ros__parameters:
+    imu_serial_port: '/dev/imu'
+    baud_rate: 9600
+    publish_rate_hz: 50.0
+    enable_debug_logging: true  # Set to false in production
+

@@ -1,0 +1,11 @@
+vesc_speed_calculator:
+  ros__parameters:
+    wheel_radius: 0.05              # 5cm diameter wheel / 2
+    gear_ratio: 11.0               # 2.72 × 4 = 10.88 (your velocity fix)
+    motor_pole_pairs: 2             # 4-pole motor = 2 pole pairs
+    motor_stop_timeout: 1.0         # 1 second timeout
+    num_samples: 10                 # Moving average window
+    publish_rate: 50.0              # 50Hz publishing rate
+    erpm_deadzone: 5.0              # Ignore ERPM below 5.0
+    velocity_threshold: 0.01        # Ignore velocities below 0.01 m/s (1cm/s)
+

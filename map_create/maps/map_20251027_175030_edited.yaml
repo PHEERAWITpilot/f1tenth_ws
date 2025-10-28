@@ -1,0 +1,10 @@
+image: /home/f2/f1tenth_ws/src/map_create/maps/map_20251027_175030_edited.pgm
+mode: trinary
+resolution: 0.01
+origin:
+  - -4.15
+  - -1.81
+  - 0
+negate: 0
+occupied_thresh: 0.65
+free_thresh: 0.25
