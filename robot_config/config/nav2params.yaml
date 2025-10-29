@@ -1,3 +1,4 @@
+
 bt_navigator:
   ros__parameters:
     use_sim_time: false
@@ -5,7 +6,11 @@ bt_navigator:
     robot_base_frame: base_link
     odom_topic: /odom
     transform_tolerance: 0.5
-    default_bt_xml_filename: "/opt/ros/humble/share/nav2_bt_navigator/behavior_trees/navigate_through_poses_w_replanning_goal_patience_and_recovery.xml"
+    # ✅ For navigate_through_poses (your main one)
+    default_bt_xml_filename: "/home/f2/f1tenth_ws/src/robot_config/config/navigate_through_poses_ackermann_racing.xml"
+    
+    # ✅ ADD THIS: For navigate_to_pose (to prevent spin error)
+    default_nav_to_pose_bt_xml: "/home/f2/f1tenth_ws/src/robot_config/config/navigate_through_poses_ackermann_racing.xml"
     default_server_timeout: 20
     plugin_lib_names:
       - nav2_compute_path_to_pose_action_bt_node
@@ -13,8 +18,8 @@ bt_navigator:
       - nav2_smooth_path_action_bt_node
       - nav2_follow_path_action_bt_node
       - nav2_wait_action_bt_node
-      - nav2_back_up_action_bt_node
-      - nav2_spin_action_bt_node
+      #- nav2_back_up_action_bt_node
+     #- nav2_spin_action_bt_node
       - nav2_drive_on_heading_bt_node
       - nav2_clear_costmap_service_bt_node
       - nav2_is_stuck_condition_bt_node
@@ -49,8 +54,8 @@ bt_navigator:
       - nav2_controller_cancel_bt_node
       - nav2_path_longer_on_approach_bt_node
       - nav2_wait_cancel_bt_node
-      - nav2_spin_cancel_bt_node
-      - nav2_back_up_cancel_bt_node
+     #- nav2_spin_cancel_bt_node
+     #- nav2_back_up_cancel_bt_node
       - nav2_drive_on_heading_cancel_bt_node
 
 
@@ -131,7 +136,7 @@ planner_server:
       plugin: "nav2_smac_planner/SmacPlannerHybrid"
       
       # Goal tolerance
-      tolerance: 0.3
+      tolerance: 0.50
       
       # Performance tuning
       downsample_costmap: true
@@ -140,12 +145,15 @@ planner_server:
       
       # Iterations
       max_iterations: 200000
-      max_on_approach_iterations: 5000
+      max_on_approach_iterations: 2500
       max_planning_time: 5.0  # ✅ Increase from 3.0 (for complex paths)
       
       # Analytic expansion
-      analytic_expansion_ratio: 4.0
-      analytic_expansion_max_length: 8.0
+      analytic_expansion_max_cost: 150.0  # Your change ✅
+      analytic_expansion_ratio: 3.0
+      analytic_expansion_max_length: 6.0
+      analytic_expansion_max_cost_override: false
+     
       # Motion model
       motion_model_for_search: "DUBIN"
       minimum_turning_radius: 0.90  # ✅ Reduce from 0.80
@@ -154,7 +162,7 @@ planner_server:
       reverse_penalty: 50.0           # Strongly avoid reversing
       change_penalty: 2.0             # Penalize direction changes (was 0.0)
       non_straight_penalty: 2.5       # Penalize curves (was 1.6)
-      cost_penalty: 30.0              # Strong wall avoidance (was 20.0)
+      cost_penalty: 50.0              # Strong wall avoidance (was 20.0)
       
       # ✅ ORIENTATION HANDLING (prevents forced U-turns)
       allow_primitive_interpolation: true
@@ -176,13 +184,9 @@ behavior_server:
     global_frame: odom
     robot_base_frame: base_link
     simulate_ahead_time: 2.0
-    behavior_plugins: ["backup", "drive_on_heading", "wait", "spin"]
+    behavior_plugins: [ "drive_on_heading", "wait"]
 
-    backup:
-      plugin: "nav2_behaviors/BackUp"
-      simulate_ahead_time: 2.0
-      backup_dist: 0.15
-      backup_speed: 0.3
+
 
     drive_on_heading:
       plugin: "nav2_behaviors/DriveOnHeading"
@@ -194,12 +198,7 @@ behavior_server:
       plugin: "nav2_behaviors/Wait"
       simulate_ahead_time: 1.0
 
-    spin:
-      plugin: "nav2_behaviors/Spin"
-      simulate_ahead_time: 2.0
-      max_rotational_vel: 0.4
-      min_rotational_vel: 0.2
-      rotational_acc_lim: 1.2
+
 
 local_costmap:
   local_costmap:
@@ -287,8 +286,8 @@ global_costmap:
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
         enabled: true
-        inflation_radius: 0.60        # ✅ Increase from 0.45
-        cost_scaling_factor: 8.0      # ✅ Increase from 5.0
+        inflation_radius: 0.35        # ✅ Increase from 0.45
+        cost_scaling_factor: 4.0      # ✅ Increase from 5.0
 
 
 
@@ -335,7 +334,5 @@ amcl:
     transform_tolerance: 0.5
     set_initial_pose: false
     always_reset_initial_pose: false
-
-
 
 

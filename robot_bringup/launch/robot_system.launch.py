@@ -73,8 +73,8 @@ def generate_launch_description():
         output='screen',
         parameters=[{
            
-            'default_bt_xml_filename': '/home/f2/f1tenth_ws/src/robot_config/config/ackermann_navigate_through_poses.xml'
-    
+            'default_bt_xml_filename': '/home/f2/f1tenth_ws/src/robot_config/config/navigate_through_poses_ackermann_racing.xml'  # ✅ New BT
+   
         }],
         respawn=False
     )

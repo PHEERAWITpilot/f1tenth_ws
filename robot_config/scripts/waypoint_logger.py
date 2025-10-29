@@ -20,7 +20,7 @@ class WaypointLogger(Node):
         
         self.waypoints = []
         self.last_pose = None
-        self.min_distance = 0.5  # Record waypoint every 0.5 meters
+        self.min_distance = 1.0  # Record waypoint every 1.0 meters
         
         self.get_logger().info('🏁 Waypoint Logger Started!')
         self.get_logger().info(f'📍 Recording waypoints every {self.min_distance}m')
