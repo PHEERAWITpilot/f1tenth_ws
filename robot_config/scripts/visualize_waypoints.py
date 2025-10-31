@@ -107,7 +107,22 @@ class WaypointVisualizer(Node):
 
 def main():
     if len(sys.argv) < 2:
-        print("Usage: python3 visualize_waypoints.py <waypoint_file.yaml>")
+        print("❌ Usage: python3 visualize_waypoints.py <waypoint_file.yaml>")
         return
     
     rclpy.init()
+    
+    waypoint_file = sys.argv[1]
+    node = WaypointVisualizer(waypoint_file)
+    
+    try:
+        rclpy.spin(node)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
+
+if __name__ == '__main__':
+    main()
+

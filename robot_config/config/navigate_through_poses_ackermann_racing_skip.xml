@@ -1,4 +1,3 @@
-
 <root BTCPP_format="4" main_tree_to_execute="MainTree">
   <BehaviorTree ID="MainTree">
     <RecoveryNode number_of_retries="5" name="NavigateRecovery">
@@ -8,6 +7,7 @@
           <RecoveryNode number_of_retries="2" name="ComputePathThroughPoses">
             <ReactiveSequence>
               
+              <!-- ✅ STEP 1: Remove waypoints we've already passed -->
               <RemovePassedGoals 
                 input_goals="{goals}" 
                 output_goals="{goals}" 
@@ -15,6 +15,18 @@
                 input_waypoint_statuses="{waypoint_statuses}"
                 output_waypoint_statuses="{waypoint_statuses}"/>
               
+              <!-- 🔥 STEP 2: NEW! Skip waypoints blocked by obstacles -->
+              <RemoveInCollisionGoals 
+                input_goals="{goals}" 
+                output_goals="{goals}"
+                cost_threshold="200.0"
+                use_footprint="true"
+                consider_unknown_as_obstacle="false"
+                service_name="/global_costmap/get_cost_global_costmap"
+                input_waypoint_statuses="{waypoint_statuses}"
+                output_waypoint_statuses="{waypoint_statuses}"/>
+              
+              <!-- ✅ STEP 3: Plan to remaining valid waypoints -->
               <ComputePathThroughPoses 
                 goals="{goals}" 
                 path="{path}" 
@@ -67,4 +79,3 @@
     </RecoveryNode>
   </BehaviorTree>
 </root>
-

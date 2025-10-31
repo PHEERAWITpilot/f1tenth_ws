@@ -8,7 +8,7 @@ import os
 
 def generate_launch_description():
     # ✅ Correct file paths for your workspace
-    default_map_path = '/home/f2/f1tenth_ws/src/map_create/maps/map_20251027_175030_edited.yaml'
+    default_map_path = '/home/f2/f1tenth_ws/src/map_create/maps/map_20251031_042639_edited1.yaml'
     default_params_path = '/home/f2/f1tenth_ws/src/robot_config/config/nav2params.yaml'
     default_bt_xml_path = '/home/f2/f1tenth_ws/src/robot_config/config/ackermann_navigate_through_poses.xml'
 
@@ -126,4 +126,5 @@ def generate_launch_description():
         initial_pose_delayed,
         lifecycle_manager_nav_delayed,
     ])
+
 
